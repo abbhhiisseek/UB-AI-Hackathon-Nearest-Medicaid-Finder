@@ -14,9 +14,10 @@ from starlette.responses import HTMLResponse, FileResponse
 app = FastAPI(debug=True)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust to specific origin if needed
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],  # Allow all origins (for production, limit this to specific origins)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 # 1. Get the directory of the current file (app.py)
@@ -150,7 +151,23 @@ async def process_data(request: Request):
         return {"error": f"Failed to parse response: {str(e)}"}
 
 
+@app.post("/calculate-distance/")
+async def calculate_distance(request: Request):
+    data = await request.json()
+    origins = data.get("origins")
+    destinations = data.get("destinations")
 
+    if not origins or not destinations:
+        return {"error": "Origins and destinations are required."}
+
+    # Call the Distance Matrix API
+    distance_matrix_url = f"https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins={origins}&destinations={destinations}&key=AIzaSyBIK25j33Bmu8bGaP0j5Cntk6P6dtYUa-0"
+    try:
+        response = requests.get(distance_matrix_url)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}
 
 
 @app.get("/", response_class=FileResponse)
