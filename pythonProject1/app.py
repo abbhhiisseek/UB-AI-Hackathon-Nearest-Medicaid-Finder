@@ -6,6 +6,7 @@ from pydantic import BaseModel, ValidationError, Field
 from langchain.prompts import PromptTemplate
 import requests
 import json
+import re
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import HTMLResponse, FileResponse
@@ -19,6 +20,12 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
 )
+
+DEPARTMENT_MAPPING = {
+    "Dentistry": "Dentist",
+    "Cardiology": "Cardio",
+    # Add more mappings as necessary
+}
 
 # 1. Get the directory of the current file (app.py)
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -102,6 +109,8 @@ async def process_data(request: Request):
     # Call the Google Gemini API
     api_response = call_gemini_api(formatted_prompt)
 
+    print(api_response)
+
     # Extracting 'text' from the response
     candidates = api_response.get('candidates', [])
     if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
@@ -109,19 +118,28 @@ async def process_data(request: Request):
     else:
         return {"error": "Invalid response structure from API."}
 
-    # Strip the backticks and extract valid JSON content
+    # Strip the backticks and extract valid JSON content using regex
     try:
-        # Remove the backticks and any non-JSON characters
-        generated_text = generated_text.replace("```json", "").replace("```", "").strip()
+        # Use regex to extract the JSON part only (everything between the ```json and ``` markers)
+        json_match = re.search(r'```json(.*?)```', generated_text, re.DOTALL)
+        if not json_match:
+            return {"error": "No valid JSON found in the response."}
+
+        # Extract and clean up the JSON content
+        json_content = json_match.group(1).strip()
 
         # Parse the cleaned JSON
-        response_data = json.loads(generated_text)
+        response_data = json.loads(json_content)
 
         # Use Pydantic to validate and return structured data
         doctor_response = DoctorResponse(**response_data)
 
         # Extract necessary parameters for NPI Registry API
         department = doctor_response.department
+        
+        if department in DEPARTMENT_MAPPING:
+            department = DEPARTMENT_MAPPING[department]
+
         city = doctor_response.city
         first_name = doctor_response.doc_name
 
@@ -134,7 +152,9 @@ async def process_data(request: Request):
         }
         filtered_params = {k: v for k, v in params.items() if v}
         npi_registry_url = "https://npiregistry.cms.hhs.gov/api/?" + urlencode(filtered_params)
+        print(npi_registry_url)
         npi_response = requests.get(npi_registry_url)
+
 
         # Append NPI Registry data to the existing response
         response = {

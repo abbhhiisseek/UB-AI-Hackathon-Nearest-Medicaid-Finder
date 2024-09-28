@@ -97,7 +97,13 @@
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
 
-                const doctors = data.npi_registry_data.results;
+                const doctors = data.npi_registry_data && data.npi_registry_data.results ? data.npi_registry_data.results : [];
+
+                if (doctors.length === 0) {
+                    resultDiv.innerHTML = "<p>No doctors found matching the search criteria.</p>";
+                    return;
+                }
+
                 doctorAddresses = doctors.map(doctor => {
                     let practiceLocation = doctor.practiceLocations.length > 0 ? doctor.practiceLocations[0] : null;
                     if (!practiceLocation) {
