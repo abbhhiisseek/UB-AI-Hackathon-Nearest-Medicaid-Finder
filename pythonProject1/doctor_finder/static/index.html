@@ -118,12 +118,22 @@
                     let organizationName = doctor.basic.organization_name || "N/A";
                     const taxonomies = doctor.taxonomies.map(taxonomy => taxonomy.desc).join(", ") || "N/A";
 
-                    resultHTML += `<div class="doctor-card" id="doctor-${index}">
+                    // Get practice location or fallback to mailing address
+                    let practiceLocation = doctor.practiceLocations.length > 0 ? doctor.practiceLocations[0] : null;
+                    if (!practiceLocation) {
+                        practiceLocation = doctor.addresses.find(address => address.address_purpose === "MAILING") || null;
+                    }
+                    let locationText = practiceLocation ? `${practiceLocation.address_1}, ${practiceLocation.city}, ${practiceLocation.state}, ${practiceLocation.postal_code}` : "N/A";
+                    let phone = practiceLocation ? (practiceLocation.telephone_number || "N/A") : "N/A";
 
+                    resultHTML += `<div class="doctor-card" id="doctor-${index}">
                         <p><strong>Name:</strong> ${firstName} ${lastName}</p>
                         <p><strong>Organization:</strong> ${organizationName}</p>
                         <p><strong>Credential:</strong> ${credential}</p>
-                        <p><strong>Taxonomies:</strong> ${taxonomies}</p></div>`;
+                        <p><strong>Taxonomies:</strong> ${taxonomies}</p>
+                        <p><strong>Practice Location:</strong> ${locationText}</p>
+                        <p><strong>Phone:</strong> ${phone}</p>
+                    </div>`;
                 });
                 resultHTML += '</div>';
                 resultDiv.innerHTML = resultHTML;
@@ -133,72 +143,72 @@
             }
 
             if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (position) => {
-            const userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-            const payload = { origins: userLocation, destinations: doctorCoordinates.join('|') };
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const userLocation = `${position.coords.latitude},${position.coords.longitude}`;
+                    const payload = { origins: userLocation, destinations: doctorCoordinates.join('|') };
 
-            const response = await fetch('/calculate-distance/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const distanceData = await response.json();
-
-            if (distanceData.status === 'OK') {
-                const distances = distanceData.rows[0].elements;
-
-                // Array to store doctors with distances and index
-                const doctorWithDistances = [];
-
-                // Step 1: Collect distance data and update each doctor tile with the distance and duration
-                distances.forEach((distance, index) => {
-                    const doctorTile = document.getElementById(`doctor-${index}`);
-                    let distanceHTML = `
-                        <p><strong>Distance:</strong> ${distance.distance.text}</p>
-                        <p><strong>Approx time to reach:</strong> ${distance.duration.text}</p>
-                    `;
-                    doctorTile.innerHTML += distanceHTML;
-
-                    // Store doctor information with distance value for sorting purposes
-                    doctorWithDistances.push({
-                        index,
-                        distanceValue: distance.distance.value,  // Distance in meters
-                        distanceText: distance.distance.text,   // Readable distance (e.g., "3 miles")
-                        durationText: distance.duration.text    // Readable duration (e.g., "10 minutes")
+                    const response = await fetch('/calculate-distance/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
                     });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const distanceData = await response.json();
+
+                    if (distanceData.status === 'OK') {
+                        const distances = distanceData.rows[0].elements;
+
+                        // Array to store doctors with distances and index
+                        const doctorWithDistances = [];
+
+                        // Step 1: Collect distance data and update each doctor tile with the distance and duration
+                        distances.forEach((distance, index) => {
+                            const doctorTile = document.getElementById(`doctor-${index}`);
+                            let distanceHTML = `
+                                <p><strong>Distance:</strong> ${distance.distance.text}</p>
+                                <p><strong>Approx time to reach:</strong> ${distance.duration.text}</p>
+                            `;
+                            doctorTile.innerHTML += distanceHTML;
+
+                            // Store doctor information with distance value for sorting purposes
+                            doctorWithDistances.push({
+                                index,
+                                distanceValue: distance.distance.value,  // Distance in meters
+                                distanceText: distance.distance.text,   // Readable distance (e.g., "3 miles")
+                                durationText: distance.duration.text    // Readable duration (e.g., "10 minutes")
+                            });
+                        });
+
+                        // Step 2: Sort the doctors in increasing order of distance
+                        doctorWithDistances.sort((a, b) => a.distanceValue - b.distanceValue);
+
+                        // Step 3: Highlight the three nearest doctors (smallest distance)
+                        doctorWithDistances.slice(0,3).forEach(doctor => {
+                            const nearestDoctorTile = document.getElementById(`doctor-${doctor.index}`);
+                            nearestDoctorTile.classList.add('highlight');  // Add red border to nearest three
+                        });
+
+                        // Step 4: Reorder and display doctors based on distance in increasing order
+                        let resultHTML = "<h3>Doctors Ordered by Distance (Nearest to Farthest):</h3>";
+                        resultHTML += '<div class="doctor-grid">';
+                        doctorWithDistances.forEach(doctor => {
+                            const doctorTile = document.getElementById(`doctor-${doctor.index}`);
+                            resultHTML += `
+                                <div class="doctor-card">
+                                    ${doctorTile.innerHTML}  <!-- Use existing doctor information -->
+                                </div>
+                            `;
+                        });
+                        resultHTML += '</div>';
+
+                        // Update the UI with the sorted doctors
+                        document.getElementById('result').innerHTML = resultHTML;
+                    }
                 });
-
-                // Step 2: Sort the doctors in decreasing order of distance
-                doctorWithDistances.sort((a, b) => a.distanceValue - b.distanceValue);
-
-                // Step 3: Highlight the three nearest doctors (smallest distance)
-                doctorWithDistances.slice(0,3).forEach(doctor => {
-                    const nearestDoctorTile = document.getElementById(`doctor-${doctor.index}`);
-                    nearestDoctorTile.classList.add('highlight');  // Add red border to nearest three
-                });
-
-                // Step 4: Reorder and display doctors based on distance in decreasing order
-                let resultHTML = "<h3>Doctors Ordered by Distance (Nearest to Farthest):</h3>";
-                resultHTML += '<div class="doctor-grid">';
-                doctorWithDistances.forEach(doctor => {
-                    const doctorTile = document.getElementById(`doctor-${doctor.index}`);
-                    resultHTML += `
-                        <div class="doctor-card">
-                            ${doctorTile.innerHTML}  <!-- Use existing doctor information -->
-                        </div>
-                    `;
-                });
-                resultHTML += '</div>';
-
-                // Update the UI with the sorted doctors
-                document.getElementById('result').innerHTML = resultHTML;
+            } else {
+                alert("Geolocation is not supported by this browser.");
             }
-        });
-    } else {
-        alert("Geolocation is not supported by this browser.");
-    }
         });
 
         // Step 3: Convert addresses to coordinates using Geocoding API
@@ -216,8 +226,6 @@
             }
             return coordinates;
         }
-
-
 
     </script>
 </body>
