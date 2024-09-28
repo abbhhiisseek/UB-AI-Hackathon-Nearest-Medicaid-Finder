@@ -1,3 +1,4 @@
+import logging
 import os
 from urllib.parse import urlencode
 
@@ -109,8 +110,6 @@ async def process_data(request: Request):
     # Call the Google Gemini API
     api_response = call_gemini_api(formatted_prompt)
 
-    print(api_response)
-
     # Extracting 'text' from the response
     candidates = api_response.get('candidates', [])
     if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
@@ -136,7 +135,7 @@ async def process_data(request: Request):
 
         # Extract necessary parameters for NPI Registry API
         department = doctor_response.department
-        
+
         if department in DEPARTMENT_MAPPING:
             department = DEPARTMENT_MAPPING[department]
 
@@ -152,9 +151,8 @@ async def process_data(request: Request):
         }
         filtered_params = {k: v for k, v in params.items() if v}
         npi_registry_url = "https://npiregistry.cms.hhs.gov/api/?" + urlencode(filtered_params)
-        print(npi_registry_url)
+        logging.info("npi_registry_url",npi_registry_url)
         npi_response = requests.get(npi_registry_url)
-
 
         # Append NPI Registry data to the existing response
         response = {
