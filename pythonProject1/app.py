@@ -134,9 +134,9 @@ You need to extract and return the following information:
 2. Specialty: Will the patient need a specialist to address their symptoms? If so which Specialty?
 3. City: If the user mentioned a city, extract it. If the user mentioned a locality, guess the city and extract it. Otherwise default to Buffalo.
 4. Provider Name: If the user mentioned a facility or Doctor's name, extract it.
-5. Medicaid Coverage: (Select from FFS MCO of OPRA if specified, otherwise NONE)
+5. Medicaid Coverage: (Select from FFS MCO of OPRA only if specified)
 
-Please return this information as a JSON object.
+Please return ONLY this information as a JSON object.
 """
 
 # Initialize LangChain prompt template
@@ -181,10 +181,10 @@ async def process_data(request: Request):
     formatted_prompt = prompt_template.format(symptoms=symptoms)
 
     # Call the Google Gemini API
-    api_response = call_gemini_api(formatted_prompt)
+    ai_response = call_gemini_api(formatted_prompt)
 
     # Extracting 'text' from the response
-    candidates = api_response.get('candidates', [])
+    candidates = ai_response.get('candidates', [])
     if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
         generated_text = candidates[0]['content']['parts'][0].get('text', '')
     else:
@@ -195,30 +195,30 @@ async def process_data(request: Request):
         # Remove the backticks and any non-JSON characters
         generated_text = generated_text.replace("```json", "").replace("```", "").strip()
 
+        # print(generated_text)
         # Parse the cleaned JSON
         generated_data = json.loads(generated_text)
 
         # Use Pydantic to validate and return structured data
         doctor_response = DoctorResponse(**generated_data)
 
-        # Prepare the NPI Registry API call
+        # Prepare the Registry API call
         params = {
             "$$app_token" : "WejkcY9YZD6Rl4kDF4br66uXx",
-            "profession_or_service": doctor_response.service if doctor_response.service else "",
-            "provider_specialty": doctor_response.specialty if doctor_response.specialty else "",
-            "city": doctor_response.city if doctor_response.city else "",
+            # "profession_or_service": doctor_response.service.upper() if doctor_response.service else "",
+            "provider_specialty": doctor_response.specialty.upper() if doctor_response.specialty else "",
+            "city": doctor_response.city.upper() if doctor_response.city else "",
             "state": "NY",
-            "mmis_name": doctor_response.provider_name if doctor_response.provider_name else "",
+            "mmis_name": doctor_response.provider_name.upper() if doctor_response.provider_name else "",
         }
         filtered_params = {k: v for k, v in params.items() if v}
         provider_registry_url = "https://health.data.ny.gov/resource/keti-qx5t.json?" + urlencode(filtered_params)
         registry_response = requests.get(provider_registry_url)
 
+        print(filtered_params)
+        print(len(registry_response.content))
 
-        print(params)
-        print(registry_response.content)
-
-        # Append NPI Registry data to the existing response
+        # Append Registry data to the existing response
         response = {
             "service": doctor_response.service,
             "specialty": doctor_response.specialty,

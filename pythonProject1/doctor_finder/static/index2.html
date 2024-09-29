@@ -102,24 +102,29 @@
                 // Step 2: Create doctor information tiles
                 let resultHTML = "<h3>Doctors Information:</h3>";
                 resultHTML += '<div class="doctor-grid">';
-                    
-                const doctors = data.registry_data || [];
-
+                const doctors = data.npi_registry_data.results;
                 doctors.forEach((doctor, index) => {
-                    let providerName = doctor.mmis_name || "N/A";
-                    let credential = doctor.profession_or_service || "N/A";
-                    let specialty = doctor.provider_specialty || "N/A";
-                    let locationText = `${doctor.service_address}, ${doctor.city}, ${doctor.state}, ${doctor.zip_code}`;
-                    let phone = doctor.telephone || "N/A";
+                    let firstName = doctor.basic.first_name || doctor.basic.authorized_official_first_name || "N/A";
+                    let lastName = doctor.basic.last_name || doctor.basic.authorized_official_last_name || "N/A";
+                    let credential = doctor.basic.credential || doctor.basic.authorized_official_credential || "N/A";
+                    let organizationName = doctor.basic.organization_name || "N/A";
+                    const taxonomies = doctor.taxonomies.map(taxonomy => taxonomy.desc).join(", ") || "N/A";
+
+                    // Get practice location or fallback to mailing address
+                    let practiceLocation = doctor.practiceLocations.length > 0 ? doctor.practiceLocations[0] : null;
+                    if (!practiceLocation) {
+                        practiceLocation = doctor.addresses.find(address => address.address_purpose === "MAILING") || null;
+                    }
+                    let locationText = practiceLocation ? `${practiceLocation.address_1}, ${practiceLocation.city}, ${practiceLocation.state}, ${practiceLocation.postal_code}` : "N/A";
+                    let phone = practiceLocation ? (practiceLocation.telephone_number || "N/A") : "N/A";
 
                     resultHTML += `<div class="doctor-card" id="doctor-${index}">
-                        <p><strong>Name:</strong> ${providerName}</p>
+                        <p><strong>Name:</strong> ${firstName} ${lastName}</p>
+                        <p><strong>Organization:</strong> ${organizationName}</p>
                         <p><strong>Credential:</strong> ${credential}</p>
-                        <p><strong>Specialty:</strong> ${specialty}</p>
+                        <p><strong>Taxonomies:</strong> ${taxonomies}</p>
                         <p><strong>Practice Location:</strong> ${locationText}</p>
                         <p><strong>Phone:</strong> ${phone}</p>
-                        <p><strong>Medicaid Type:</strong> ${doctor.medicaid_type}</p>
-                        <p><strong>Last Updated:</strong> ${new Date(doctor.updated).toLocaleDateString()}</p>
                     </div>`;
                 });
                 resultHTML += '</div>';
