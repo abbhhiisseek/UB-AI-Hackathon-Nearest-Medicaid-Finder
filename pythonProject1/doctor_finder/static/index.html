@@ -123,7 +123,9 @@
                     </div>`;
                 });
                 resultHTML += '</div>';
-                resultDiv.innerHTML = resultHTML;
+
+                if (!doctors || doctors.length < 1) resultDiv.innerHTML = `No Providers Found At This Time`;
+                else resultDiv.innerHTML = resultHTML;
 
             } catch (error) {
                 resultDiv.innerHTML = `Error: ${error.message}`;

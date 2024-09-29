@@ -213,6 +213,8 @@ async def process_data(request: Request):
         }
         filtered_params = {k: v for k, v in params.items() if v}
         provider_registry_url = "https://health.data.ny.gov/resource/keti-qx5t.json?" + urlencode(filtered_params)
+        if doctor_response.service: # need to do this bc many are just in as PHYSICIAN
+            provider_registry_url += f"&$where=profession_or_service in('PHYSICIAN','{doctor_response.service.upper()}')"
         registry_response = requests.get(provider_registry_url)
 
         print(filtered_params)
