@@ -4,4 +4,4 @@ langchain
 pydantic
 requests
 python-multipart
-urlencode
+gunicorn
