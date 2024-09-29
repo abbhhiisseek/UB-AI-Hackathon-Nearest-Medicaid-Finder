@@ -4,87 +4,163 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Doctor Finder</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
+      <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --background-color: #f5f6fa;
+            --card-color: #ffffff;
+            --text-color: #34495e;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        body, html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
         }
+
         .container {
-            max-width: 1000px;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
         }
+
         h1 {
-            color: #333;
+            font-size: 2.5rem;
+            color: var(--secondary-color);
+            text-align: center;
+            margin-bottom: 2rem;
         }
-        textarea, button {
-            width: 100%;
-            margin-bottom: 10px;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
+
+        #symptomForm {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
         }
+
+        #symptoms {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            box-shadow: var(--shadow);
+            font-size: 1rem;
+        }
+
         button {
-            background-color: #4CAF50;
+            background-color: var(--primary-color);
             color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
             cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 1rem;
         }
+
         button:hover {
-            background-color: #45a049;
+            background-color: #2980b9;
         }
-        #result {
-            margin-top: 20px;
-        }
+
         .doctor-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
         }
+
         .doctor-card {
-            background-color: #e7f3fe;
-            border-left: 5px solid #2196F3;
-            padding: 15px;
+            background-color: var(--card-color);
             border-radius: 8px;
-            transition: transform 0.2s ease;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 5px solid var(--primary-color); /* Added blue border on the left */
         }
-        .doctor-card.highlight {
-            border: 3px solid red;
-        }
+
         .doctor-card:hover {
-            transform: scale(1.05);
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
         }
+
+        .doctor-card h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        .doctor-card p {
+            margin: 0.5rem 0;
+        }
+
+        .distance-info {
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--secondary-color);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 2rem;
+            gap: 1rem;
+        }
+
+        .pagination button {
+            background-color: var(--secondary-color);
+            padding: 0.5rem 1rem;
+        }
+
+        .pagination button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        #result {
+            margin-top: 2rem;
+        }
+
         @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            #symptomForm {
+                flex-direction: column;
+            }
+
             .doctor-grid {
                 grid-template-columns: 1fr;
             }
         }
     </style>
-</head>
 <body>
     <div class="container">
         <h1>Doctor Finder</h1>
         <form id="symptomForm">
-            <textarea id="symptoms" rows="4" placeholder="Describe your symptoms here..."></textarea>
-            <button type="submit">Find Doctor</button>
+            <input type="text" id="symptoms" placeholder="Describe your symptoms..." required>
+            <button type="submit">Find Doctors</button>
         </form>
         <div id="result"></div>
+        <div id="pagination" class="pagination"></div>
     </div>
 
     <script>
         let doctorAddresses = [];
-        let doctorCoordinates = [];
+        let allDoctors = [];
+        const MAX_ELEMENTS_PER_REQUEST = 25;
+        const DELAY_BETWEEN_REQUESTS = 1000;
+        const DOCTORS_PER_PAGE = 10;
+        let currentPage = 1;
 
-        // Step 1: Fetch doctor data based on symptoms
         document.getElementById('symptomForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const symptoms = document.getElementById('symptoms').value;
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = 'Processing...';
+            resultDiv.innerHTML = '<p>Searching for doctors...</p>';
 
             try {
                 const response = await fetch('/process/', {
@@ -97,142 +173,188 @@
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
 
-                const doctors = data.npi_registry_data && data.npi_registry_data.results ? data.npi_registry_data.results : [];
+                const doctors = data.registry_data || [];
+                doctorAddresses = [];
+                allDoctors = [];
 
-                if (doctors.length === 0) {
-                    resultDiv.innerHTML = "<p>No doctors found matching the search criteria.</p>";
-                    return;
+                doctors.forEach((doctor, index) => {
+                    let providerName = doctor.mmis_name || "N/A";
+                    let credential = doctor.profession_or_service || "N/A";
+                    let specialty = doctor.provider_specialty || "N/A";
+                    let locationText = `${doctor.service_address}, ${doctor.city}, ${doctor.state}, ${doctor.zip_code}` || "N/A";
+
+                    if (doctor.service_address && doctor.city && doctor.state && doctor.zip_code) {
+                        doctorAddresses.push(locationText);
+                    }
+
+                    allDoctors.push({
+                        html: `
+                            <div class="doctor-card" id="doctor-${index}">
+                                <h3>${providerName}</h3>
+                                <p><strong>Credential:</strong> ${credential}</p>
+                                <p><strong>Specialty:</strong> ${specialty}</p>
+                                <p><strong>Location:</strong> ${locationText}</p>
+                                <p><strong>Phone:</strong> ${doctor.telephone || "N/A"}</p>
+                                <p><strong>Medicaid Type:</strong> ${doctor.medicaid_type}</p>
+                                <p class="distance-info">Calculating distance...</p>
+                            </div>
+                        `
+                    });
+                });
+
+                if (!doctors || doctors.length < 1) {
+                    resultDiv.innerHTML = `<p>No Providers Found At This Time</p>`;
+                } else {
+                    displayDoctors(1);
+                    setupPagination();
                 }
 
-                doctorAddresses = doctors.map(doctor => {
-                    let practiceLocation = doctor.practiceLocations.length > 0 ? doctor.practiceLocations[0] : null;
-                    if (!practiceLocation) {
-                        practiceLocation = doctor.addresses.find(address => address.address_purpose === "MAILING") || null;
-                    }
-                    return practiceLocation ? `${practiceLocation.address_1}, ${practiceLocation.city}, ${practiceLocation.state}, ${practiceLocation.postal_code}` : null;
-                });
-
-                doctorCoordinates = await convertAddressesToCoordinates(doctorAddresses);
-
-                // Step 2: Create doctor information tiles
-                let resultHTML = "<h3>Doctors Information:</h3>";
-                resultHTML += '<div class="doctor-grid">';
-                doctors.forEach((doctor, index) => {
-                    let firstName = doctor.basic.first_name || doctor.basic.authorized_official_first_name || "N/A";
-                    let lastName = doctor.basic.last_name || doctor.basic.authorized_official_last_name || "N/A";
-                    let credential = doctor.basic.credential || doctor.basic.authorized_official_credential || "N/A";
-                    let organizationName = doctor.basic.organization_name || "N/A";
-                    const taxonomies = doctor.taxonomies.map(taxonomy => taxonomy.desc).join(", ") || "N/A";
-
-                    // Get practice location or fallback to mailing address
-                    let practiceLocation = doctor.practiceLocations.length > 0 ? doctor.practiceLocations[0] : null;
-                    if (!practiceLocation) {
-                        practiceLocation = doctor.addresses.find(address => address.address_purpose === "MAILING") || null;
-                    }
-                    let locationText = practiceLocation ? `${practiceLocation.address_1}, ${practiceLocation.city}, ${practiceLocation.state}, ${practiceLocation.postal_code}` : "N/A";
-                    let phone = practiceLocation ? (practiceLocation.telephone_number || "N/A") : "N/A";
-
-                    resultHTML += `<div class="doctor-card" id="doctor-${index}">
-                        <p><strong>Name:</strong> ${firstName} ${lastName}</p>
-                        <p><strong>Organization:</strong> ${organizationName}</p>
-                        <p><strong>Credential:</strong> ${credential}</p>
-                        <p><strong>Taxonomies:</strong> ${taxonomies}</p>
-                        <p><strong>Practice Location:</strong> ${locationText}</p>
-                        <p><strong>Phone:</strong> ${phone}</p>
-                    </div>`;
-                });
-                resultHTML += '</div>';
-                resultDiv.innerHTML = resultHTML;
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(calculateDistances, handleGeolocationError);
+                } else {
+                    alert("Geolocation is not supported by this browser.");
+                }
 
             } catch (error) {
-                resultDiv.innerHTML = `Error: ${error.message}`;
+                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
             }
+        });
 
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async (position) => {
-                    const userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-                    const payload = { origins: userLocation, destinations: doctorCoordinates.join('|') };
+        function displayDoctors(page) {
+            const resultDiv = document.getElementById('result');
+            const startIndex = (page - 1) * DOCTORS_PER_PAGE;
+            const endIndex = startIndex + DOCTORS_PER_PAGE;
+            const doctorsToDisplay = allDoctors.slice(startIndex, endIndex);
 
-                    const response = await fetch('/calculate-distance/', {
+            let resultHTML = '<div class="doctor-grid">';
+            doctorsToDisplay.forEach(doctor => {
+                resultHTML += doctor.html;
+            });
+            resultHTML += '</div>';
+
+            resultDiv.innerHTML = resultHTML;
+            currentPage = page;
+        }
+
+        function setupPagination() {
+            const paginationDiv = document.getElementById('pagination');
+            const totalPages = Math.ceil(allDoctors.length / DOCTORS_PER_PAGE);
+
+            let paginationHTML = '';
+            paginationHTML += `<button onclick="changePage(-1)" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>`;
+            paginationHTML += `<span>Page ${currentPage} of ${totalPages}</span>`;
+            paginationHTML += `<button onclick="changePage(1)" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`;
+
+            paginationDiv.innerHTML = paginationHTML;
+        }
+
+        function changePage(direction) {
+            const newPage = currentPage + direction;
+            if (newPage >= 1 && newPage <= Math.ceil(allDoctors.length / DOCTORS_PER_PAGE)) {
+                displayDoctors(newPage);
+                setupPagination();
+            }
+        }
+
+        async function calculateDistances(position) {
+            try {
+                const userLocation = `${position.coords.latitude},${position.coords.longitude}`;
+                const doctorCoordinates = await convertAddressesToCoordinates(doctorAddresses);
+
+                const coordinateChunks = chunkArray(doctorCoordinates, MAX_ELEMENTS_PER_REQUEST);
+
+                let allDistances = [];
+                for (let i = 0; i < coordinateChunks.length; i++) {
+                    const chunk = coordinateChunks[i];
+                    const payload = {
+                        origins: userLocation,
+                        destinations: chunk.join('|')
+                    };
+
+                    const distanceResponse = await fetch('/calculate-distance/', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const distanceData = await response.json();
+                    if (!distanceResponse.ok) {
+                        throw new Error(`HTTP error! status: ${distanceResponse.status}`);
+                    }
 
-                    if (distanceData.status === 'OK') {
-                        const distances = distanceData.rows[0].elements;
+                    const distanceData = await distanceResponse.json();
 
-                        // Array to store doctors with distances and index
-                        const doctorWithDistances = [];
+                    if (distanceData.status !== 'OK') {
+                        throw new Error('Distance Matrix API returned non-OK status');
+                    }
 
-                        // Step 1: Collect distance data and update each doctor tile with the distance and duration
-                        distances.forEach((distance, index) => {
-                            const doctorTile = document.getElementById(`doctor-${index}`);
-                            let distanceHTML = `
-                                <p><strong>Distance:</strong> ${distance.distance.text}</p>
-                                <p><strong>Approx time to reach:</strong> ${distance.duration.text}</p>
-                            `;
-                            doctorTile.innerHTML += distanceHTML;
+                    allDistances = allDistances.concat(distanceData.rows[0].elements);
 
-                            // Store doctor information with distance value for sorting purposes
-                            doctorWithDistances.push({
-                                index,
-                                distanceValue: distance.distance.value,  // Distance in meters
-                                distanceText: distance.distance.text,   // Readable distance (e.g., "3 miles")
-                                durationText: distance.duration.text    // Readable duration (e.g., "10 minutes")
-                            });
-                        });
+                    if (i < coordinateChunks.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+                    }
+                }
 
-                        // Step 2: Sort the doctors in increasing order of distance
-                        doctorWithDistances.sort((a, b) => a.distanceValue - b.distanceValue);
-
-                        // Step 3: Highlight the three nearest doctors (smallest distance)
-                        doctorWithDistances.slice(0,3).forEach(doctor => {
-                            const nearestDoctorTile = document.getElementById(`doctor-${doctor.index}`);
-                            nearestDoctorTile.classList.add('highlight');  // Add red border to nearest three
-                        });
-
-                        // Step 4: Reorder and display doctors based on distance in increasing order
-                        let resultHTML = "<h3>Doctors Ordered by Distance (Nearest to Farthest):</h3>";
-                        resultHTML += '<div class="doctor-grid">';
-                        doctorWithDistances.forEach(doctor => {
-                            const doctorTile = document.getElementById(`doctor-${doctor.index}`);
-                            resultHTML += `
-                                <div class="doctor-card">
-                                    ${doctorTile.innerHTML}  <!-- Use existing doctor information -->
-                                </div>
-                            `;
-                        });
-                        resultHTML += '</div>';
-
-                        // Update the UI with the sorted doctors
-                        document.getElementById('result').innerHTML = resultHTML;
+                allDoctors.forEach((doctor, index) => {
+                    const distance = allDistances[index];
+                    if (distance && distance.status === 'OK') {
+                        const distanceInfo = `
+                            <strong>Distance:</strong> ${distance.distance.text}<br>
+                            <strong>Estimated travel time:</strong> ${distance.duration.text}
+                        `;
+                        doctor.html = doctor.html.replace('<p class="distance-info">Calculating distance...</p>', `<p class="distance-info">${distanceInfo}</p>`);
+                        doctor.distanceValue = distance.distance.value;
+                    } else {
+                        doctor.html = doctor.html.replace('<p class="distance-info">Calculating distance...</p>', '<p class="distance-info">Distance information unavailable</p>');
+                        doctor.distanceValue = Infinity;
                     }
                 });
-            } else {
-                alert("Geolocation is not supported by this browser.");
-            }
-        });
 
-        // Step 3: Convert addresses to coordinates using Geocoding API
+                allDoctors.sort((a, b) => a.distanceValue - b.distanceValue);
+
+                displayDoctors(1);
+                setupPagination();
+
+            } catch (error) {
+                console.error('Error in distance calculation:', error);
+                document.querySelectorAll('.distance-info').forEach(el => {
+                    el.textContent = 'Distance calculation failed';
+                });
+            }
+        }
+
+        function handleGeolocationError(error) {
+            console.error('Geolocation error:', error);
+            alert("Error getting your location. Distance information won't be available.");
+        }
+
         async function convertAddressesToCoordinates(addresses) {
             const coordinates = [];
             for (const address of addresses) {
-                const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyBIK25j33Bmu8bGaP0j5Cntk6P6dtYUa-0`);
-                const data = await response.json();
-                if (data.status === 'OK') {
-                    const location = data.results[0].geometry.location;
-                    coordinates.push(`${location.lat},${location.lng}`);
-                } else {
-                    console.error('Error converting address to coordinates:', data.status);
+                try {
+                    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyBIK25j33Bmu8bGaP0j5Cntk6P6dtYUa-0`);
+                    const data = await response.json();
+                    if (data.status === 'OK') {
+                        const location = data.results[0].geometry.location;
+                        coordinates.push(`${location.lat},${location.lng}`);
+                    } else {
+                        console.error(`Geocoding failed for address: ${address}. Status: ${data.status}`);
+                        coordinates.push('0,0');
+                    }
+                } catch (error) {
+                    console.error(`Error geocoding address: ${address}`, error);
+                    coordinates.push('0,0');
                 }
             }
             return coordinates;
         }
 
+        function chunkArray(array, chunkSize) {
+            const chunks = [];
+            for (let i = 0; i < array.length; i += chunkSize) {
+                chunks.push(array.slice(i, i + chunkSize));
+            }
+            return chunks;
+        }
     </script>
 </body>
 </html>
