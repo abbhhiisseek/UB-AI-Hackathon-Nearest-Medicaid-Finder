@@ -1,4 +1,4 @@
-# AI-Powered Insurance Finder
+# AI-Powered Closest Medicaid Finder
 
 ## Inspiration
 Finding the right insurance and doctors can be a daunting task. By integrating AI into the process, we aimed to simplify this challenge. Users will be matched with in-network doctors and understand complex policies easily just by typing their questions.
