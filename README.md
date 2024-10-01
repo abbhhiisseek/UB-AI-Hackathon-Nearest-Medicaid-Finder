@@ -37,3 +37,7 @@ This project combines the power of AI and cloud technologies to simplify the pro
 
 ## Try it out
 [mapit-163714.uc.r.appspot.com](http://mapit-163714.uc.r.appspot.com)
+
+![Screenshot 2024-09-29 110952](https://github.com/user-attachments/assets/d06fd5fa-8b3e-44d5-8652-8bec3ec57fb7)  ![Screenshot 2024-09-29 111020](https://github.com/user-attachments/assets/343604f7-6a8c-439e-b163-1b69f7400830)
+
+
